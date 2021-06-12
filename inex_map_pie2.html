@@ -1,0 +1,522 @@
+<div id="chartdiv"></div>
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    #chartdiv {
+      width: 100%;
+      height: 500px;
+    }
+  </style>
+  <!-- Resources -->
+  <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
+  <script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
+  <script src="https://cdn.amcharts.com/lib/4/maps.js"></script>
+  <script src="https://cdn.amcharts.com/lib/4/geodata/worldIndiaHigh.js"></script>
+  <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+</head>
+
+<body>
+  <div id="chartdiv"></div>
+  <script>
+    am4core.ready(function () {
+
+      // Themes begin
+      am4core.useTheme(am4themes_animated);
+      // Themes end
+
+
+
+      var chart = am4core.create("chartdiv", am4maps.MapChart);
+
+
+      try {
+        chart.geodata = am4geodata_worldIndiaHigh;
+      }
+      catch (e) {
+        chart.raiseCriticalError(new Error("Map geodata could not be loaded. Please download the latest <a href=\"https://www.amcharts.com/download/download-v4/\">amcharts geodata</a> and extract its contents into the same directory as your amCharts files."));
+      }
+
+      chart.homeZoomLevel = 2
+        chart.homeGeoPoint = {
+          latitude: 4,
+          longitude: 15
+        };
+      chart.projection = new am4maps.projections.Mercator();
+
+      // chart.projection = new am4maps.projections.Miller();
+      // zoomout on background click
+      chart.chartContainer.background.events.on("hit", function () { zoomOut() });
+
+      var colorSet = new am4core.ColorSet();
+      var morphedPolygon;
+
+      // map polygon series (countries)
+      var polygonSeries = chart.series.push(new am4maps.MapPolygonSeries());
+      // polygonSeries.useGeodata = true;
+      // specify which countries to include
+      // polygonSeries.include = ["IT", "CH", "FR", "DE", "IN", "ES", "PT", "IE", "NL", "LU", "BE", "AT", "DK"]
+      // polygonSeries.include = ["BF", "ET", "GH", "ML", "NG", "TZ", "UG", "IN"]
+      // polygonSeries.exclude = ["AQ","US","CA","GL","RU","SJ","AS"];
+      polygonSeries.exclude = ["AQ"];
+      polygonSeries.useGeodata = true;
+
+      polygonSeries.heatRules.push({
+        property: "fill",
+        target: polygonSeries.mapPolygons.template,
+        min: chart.colors.getIndex(4).brighten(1),
+        max: chart.colors.getIndex(4).brighten(-0.3)
+      });
+
+
+
+      polygonSeries.data = [
+        {
+          "id": "BF",
+          "value": 695.1,
+          "indicators": "Burkina Faso"
+        },
+        {
+          "id": "ET",
+          "value": 44394.27,
+          "indicators": "Ethiopia"
+        },
+        {
+          "id": "GH",
+          "value": 139,
+          "indicators": "Ghana"
+        },
+        {
+          "id": "ML",
+          "value": 8010.61,
+          "indicators": "Mali"
+        },
+        {
+          "id": "NG",
+          "value": 6486.84,
+          "indicators": "Nigeria"
+        },
+        {
+          "id": "TZ",
+          "value": 52762.060000000005,
+          "indicators": "Tanzania"
+        },
+        {
+          "id": "UG",
+          "value": 21400.48,
+          "indicators": "Uganda"
+        }
+      ]
+
+      // // country area look and behavior
+      var polygonTemplate = polygonSeries.mapPolygons.template;
+      polygonTemplate.strokeOpacity = 1;
+      polygonTemplate.stroke = am4core.color("#ffffff");
+      polygonTemplate.fillOpacity = 0.5;
+      polygonTemplate.tooltipText = "{name}";
+
+      // desaturate filter for countries
+      var desaturateFilter = new am4core.DesaturateFilter();
+      desaturateFilter.saturation = 0.25;
+      polygonTemplate.filters.push(desaturateFilter);
+
+      // take a color from color set
+      // polygonTemplate.adapter.add("fill", function (fill, target) {
+
+      //   // setTimeout(() => {
+      //   //   let chosen = target.dataItem.dataContext.name
+      //   //   var newarr = chartData.filter(d=> d.title == chosen).map(d=> d[i])
+      //   //   console.log(chartData);
+
+
+      //   //   console.log(newarr);
+      //   //   console.log(target.dataItem.index + 1);
+      //   // }, 2000);
+      //   return colorSet.getIndex(target.dataItem.index + 1);
+
+      // })
+
+      // set fillOpacity to 1 when hovered
+      var hoverState = polygonTemplate.states.create("hover");
+      hoverState.properties.fillOpacity = 1;
+
+      // what to do when country is clicked
+      polygonTemplate.events.on("hit", function (event) {
+        event.target.zIndex = 1000000;
+
+        console.log(event.target.dataItem._dataContext.name);
+        let selected = event.target.dataItem._dataContext.name
+        pieSeries.data = chartData.filter(d => d.title == selected).map(d => d.pieData)[0]
+
+
+        console.log(chartData.filter(d => d.title == selected).length);
+
+        if (chartData.filter(d => d.title == selected) != 0) {
+          selectPolygon(event.target);
+        }
+        console.log(pieSeries.data);
+      })
+
+      // Pie chart
+      var pieChart = chart.seriesContainer.createChild(am4charts.PieChart);
+      // Set width/heigh of a pie chart for easier positioning only
+      pieChart.width = 100;
+      pieChart.height = 100;
+      pieChart.hidden = true; // can't use visible = false!
+
+      // because defauls are 50, and it's not good with small countries
+      pieChart.chartContainer.minHeight = 1;
+      pieChart.chartContainer.minWidth = 1;
+
+      var pieSeries = pieChart.series.push(new am4charts.PieSeries());
+      pieSeries.dataFields.value = "value";
+      pieSeries.dataFields.category = "category";
+      // pieSeries.data = [{ value: 100, category: "First" }, { value: 20, category: "Second" }, { value: 10, category: "Third" }];
+
+      let chartData = [
+        {
+          "title": "Burkina Faso",
+          "latitude": 12.238333,
+          "longitude": -1.561593,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 675
+            },
+            {
+              "category": "Foundation seed",
+              "value": 20.1
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 0
+            }
+          ]
+        },
+        {
+          "title": "Ethiopia",
+          "latitude": 9.145,
+          "longitude": 40.489673,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 38714.5
+            },
+            {
+              "category": "Foundation seed",
+              "value": 1592.5700000000002
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 4087.2
+            }
+          ]
+        },
+        {
+          "title": "Ghana",
+          "latitude": 7.946527,
+          "longitude": -1.023194,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 7
+            },
+            {
+              "category": "Foundation seed",
+              "value": 16
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 116
+            }
+          ]
+        },
+        {
+          "title": "Mali",
+          "latitude": 17.570692,
+          "longitude": -3.996166,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 6225
+            },
+            {
+              "category": "Foundation seed",
+              "value": 512
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 1273.61
+            }
+          ]
+        },
+        {
+          "title": "Nigeria",
+          "latitude": 9.081999,
+          "longitude": 8.675277,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 5026.21
+            },
+            {
+              "category": "Foundation seed",
+              "value": 467.49
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 993.14
+            }
+          ]
+        },
+        {
+          "title": "Tanzania",
+          "latitude": -6.369028,
+          "longitude": 34.888822,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 49141.4
+            },
+            {
+              "category": "Foundation seed",
+              "value": 205.73
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 3414.9300000000003
+            }
+          ]
+        },
+        {
+          "title": "Uganda",
+          "latitude": 1.373333,
+          "longitude": 32.290275,
+          "width": 0.3,
+          "height": 0.5,
+          "pieData": [
+            {
+              "category": "Breeder seed",
+              "value": 17438
+            },
+            {
+              "category": "Foundation seed",
+              "value": 329.29
+            },
+            {
+              "category": "Certifiedqds seed",
+              "value": 3633.19
+            }
+          ]
+        }
+      ]
+      var dropShadowFilter = new am4core.DropShadowFilter();
+      dropShadowFilter.blur = 4;
+      pieSeries.filters.push(dropShadowFilter);
+
+      var sliceTemplate = pieSeries.slices.template;
+      sliceTemplate.fillOpacity = 1;
+      sliceTemplate.strokeOpacity = 0;
+
+      var activeState = sliceTemplate.states.getKey("active");
+      activeState.properties.shiftRadius = 0; // no need to pull on click, as country circle under the pie won't make it good
+
+      var sliceHoverState = sliceTemplate.states.getKey("hover");
+      sliceHoverState.properties.shiftRadius = 0; // no need to pull on click, as country circle under the pie won't make it good
+
+      // we don't need default pie chart animation, so change defaults
+      var hiddenState = pieSeries.hiddenState;
+      hiddenState.properties.startAngle = pieSeries.startAngle;
+      hiddenState.properties.endAngle = pieSeries.endAngle;
+      hiddenState.properties.opacity = 0;
+      hiddenState.properties.visible = false;
+
+      // series labels
+      var labelTemplate = pieSeries.labels.template;
+      labelTemplate.nonScaling = true;
+      labelTemplate.fill = am4core.color("#FFFFFF");
+      labelTemplate.fontSize = 10;
+      labelTemplate.background = new am4core.RoundedRectangle();
+      labelTemplate.background.fillOpacity = 0.9;
+      labelTemplate.padding(4, 9, 4, 9);
+      labelTemplate.background.fill = am4core.color("#7678a0");
+
+      // we need pie series to hide faster to avoid strange pause after country is clicked
+      pieSeries.hiddenState.transitionDuration = 200;
+
+      // country label
+      var countryLabel = chart.chartContainer.createChild(am4core.Label);
+      countryLabel.text = "Select a country";
+      countryLabel.fill = am4core.color("#7678a0");
+      countryLabel.fontSize = 40;
+
+      countryLabel.hiddenState.properties.dy = 1000;
+      countryLabel.defaultState.properties.dy = 0;
+      countryLabel.valign = "middle";
+      countryLabel.align = "right";
+      countryLabel.paddingRight = 50;
+      countryLabel.hide(0);
+      countryLabel.show();
+
+      // select polygon
+      function selectPolygon(polygon) {
+        // debugger
+        if (morphedPolygon != polygon) {
+          var animation = pieSeries.hide();
+          if (animation) {
+            animation.events.on("animationended", function () {
+              morphToCircle(polygon);
+            })
+          }
+          else {
+            morphToCircle(polygon);
+          }
+        }
+      }
+
+      // fade out all countries except selected
+      function fadeOut(exceptPolygon) {
+        for (var i = 0; i < polygonSeries.mapPolygons.length; i++) {
+          var polygon = polygonSeries.mapPolygons.getIndex(i);
+          if (polygon != exceptPolygon) {
+            polygon.defaultState.properties.fillOpacity = 0.5;
+            polygon.animate([{ property: "fillOpacity", to: 0.5 }, { property: "strokeOpacity", to: 1 }], polygon.polygon.morpher.morphDuration);
+          }
+        }
+      }
+
+      function zoomOut() {
+        if (morphedPolygon) {
+          pieSeries.hide();
+          morphBack();
+          fadeOut();
+          countryLabel.hide();
+          morphedPolygon = undefined;
+        }
+      }
+
+      function morphBack() {
+        if (morphedPolygon) {
+          morphedPolygon.polygon.morpher.morphBack();
+          var dsf = morphedPolygon.filters.getIndex(0);
+          dsf.animate({ property: "saturation", to: 0.25 }, morphedPolygon.polygon.morpher.morphDuration);
+        }
+      }
+
+      function morphToCircle(polygon) {
+
+
+        var animationDuration = polygon.polygon.morpher.morphDuration;
+        // if there is a country already morphed to circle, morph it back
+        morphBack();
+        // morph polygon to circle
+        polygon.toFront();
+        polygon.polygon.morpher.morphToSingle = true;
+        var morphAnimation = polygon.polygon.morpher.morphToCircle();
+
+        polygon.strokeOpacity = 0; // hide stroke for lines not to cross countries
+
+        polygon.defaultState.properties.fillOpacity = 1;
+        polygon.animate({ property: "fillOpacity", to: 1 }, animationDuration);
+
+        // animate desaturate filter
+        var filter = polygon.filters.getIndex(0);
+        filter.animate({ property: "saturation", to: 1 }, animationDuration);
+
+        // save currently morphed polygon
+        morphedPolygon = polygon;
+
+        // fade out all other
+        fadeOut(polygon);
+
+        // hide country label
+        countryLabel.hide();
+
+        if (morphAnimation) {
+          morphAnimation.events.on("animationended", function () {
+            zoomToCountry(polygon);
+          })
+        }
+        else {
+          zoomToCountry(polygon);
+        }
+      }
+
+      function zoomToCountry(polygon) {
+        var zoomAnimation = chart.zoomToMapObject(polygon, 2.2, true);
+        if (zoomAnimation) {
+          zoomAnimation.events.on("animationended", function () {
+            showPieChart(polygon);
+          })
+        }
+        else {
+          showPieChart(polygon);
+        }
+      }
+
+
+      function showPieChart(polygon) {
+        polygon.polygon.measure();
+        var radius = polygon.polygon.measuredWidth / 2 * polygon.globalScale / chart.seriesContainer.scale;
+        pieChart.width = radius * 2;
+        pieChart.height = radius * 2;
+        pieChart.radius = radius;
+
+        var centerPoint = am4core.utils.spritePointToSvg(polygon.polygon.centerPoint, polygon.polygon);
+        centerPoint = am4core.utils.svgPointToSprite(centerPoint, chart.seriesContainer);
+
+        pieChart.x = centerPoint.x - radius;
+        pieChart.y = centerPoint.y - radius;
+
+        var fill = polygon.fill;
+        var desaturated = fill.saturate(0.3);
+
+        console.log(pieSeries);
+
+        for (var i = 0; i < pieSeries.dataItems.length; i++) {
+          var dataItem = pieSeries.dataItems.getIndex(i);
+          // console.log(dataItem);
+          dataItem.value = Math.round(Math.random() * 100);
+          dataItem.slice.fill = am4core.color(am4core.colors.interpolate(
+            fill.rgb,
+            am4core.color("#ffffff").rgb,
+            0.2 * i
+          ));
+
+          dataItem.label.background.fill = desaturated;
+          dataItem.tick.stroke = fill;
+        }
+
+        pieSeries.show();
+        pieChart.show();
+
+        countryLabel.text = "{name}";
+        countryLabel.dataItem = polygon.dataItem;
+        countryLabel.fill = desaturated;
+        countryLabel.show();
+      }
+
+
+    }); // end am4core.ready()
+  </script>
+</body>
+
+</html>
